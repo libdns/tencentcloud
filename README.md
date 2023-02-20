@@ -1,6 +1,6 @@
 # TencentCloud DNSPod for `libdns`
 
-This package implements the libdns interfaces for the [TencentCloud DNSPod API](https://www.tencentcloud.com/zh/document/api/1157/49025) (using the Go implementation from: <https://github.com/rehiy/libdns-tencentcloud>)
+This package implements the [libdns](https://github.com/libdns/libdns) interfaces for the [TencentCloud DNSPod API](https://www.tencentcloud.com/zh/document/api/1157/49025) (using the Go implementation from: <https://github.com/rehiy/libdns-tencentcloud>)
 
 ## Applying for Security Credentials
 
