@@ -4,7 +4,7 @@ This package implements the [libdns](https://github.com/libdns/libdns) interface
 
 ## Code example
 
-```shell
+```go
 import "github.com/libdns/tencentcloud"
 provider := &tencentcloud.Provider{
     SecretId:  "YOUR_Secret_ID",
