@@ -1,4 +1,4 @@
-module github.com/rehiy/libdns-tencentcloud
+module github.com/libdns/tencentcloud
 
 go 1.18
 

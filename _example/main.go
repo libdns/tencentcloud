@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	tencentcloud "github.com/rehiy/libdns-tencentcloud"
+	tencentcloud "github.com/libdns/tencentcloud"
 )
 
 func main() {
