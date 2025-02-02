@@ -1,6 +1,4 @@
 github.com/libdns/libdns v0.2.2 h1:O6ws7bAfRPaBsgAYt8MDe2HcNBGC29hkZ9MX2eUSX3s=
 github.com/libdns/libdns v0.2.2/go.mod h1:4Bj9+5CQiNMVGf87wjX4CY3HQJypUHRuLvlsfsZqLWQ=
-github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.1033 h1:g263/dapUpOAZJa1Y9x07WgfOl7Yy+FM5Mrf4WyttS8=
-github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.1033/go.mod h1:r5r4xbfxSaeR04b166HGsBa/R4U3SueirEUpXGuw+Q0=
-github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/dnspod v1.0.1033 h1:bRCo+X6i/6B+5Q/G4+rexcMRxpSq+9XS/8+Usn6OcOA=
-github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/dnspod v1.0.1033/go.mod h1:ta9FOsQP/SvQAhDD6IhVhYWyY+eboPEbPWq7zpiNwZA=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.1051 h1:3mg0L9vv9eO8UN4Oa7vNawe6yUIuXf9D0Q79rUmnblo=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.1051/go.mod h1:r5r4xbfxSaeR04b166HGsBa/R4U3SueirEUpXGuw+Q0=
