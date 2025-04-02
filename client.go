@@ -2,131 +2,147 @@ package tencentcloud
 
 import (
 	"context"
-	"strconv"
+	"io"
+	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/libdns/libdns"
-	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
-	tp "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
-
-	"github.com/libdns/tencentcloud/dnspod"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
-// getClient gets the client for Tencent Cloud DNS
-func (p *Provider) getClient() (*dnspod.Client, error) {
-	client := sync.OnceValues(func() (*dnspod.Client, error) {
-		credential := common.NewCredential(
-			p.SecretId,
-			p.SecretKey,
-		)
-		cpf := tp.NewClientProfile()
-		cpf.HttpProfile.Endpoint = "dnspod.tencentcloudapi.com"
-		client, err := dnspod.NewClient(credential, "", cpf)
-		if err != nil {
-			return nil, err
-		}
-		return client, nil
-	})
-	return client()
-}
+const (
+	endpoint     = "https://dnspod.tencentcloudapi.com"
+	reqJson      = `{"RecordType":"","Domain":"","RecordLine":"默认","SubDomain":"","Value":"","RecordId":0}`
+	reqJson_find = `{"RecordType":"","Domain":"","Subdomain":""}`
 
-// describeRecordList describes the records for a zone
-func (p *Provider) describeRecordList(ctx context.Context, zone string) ([]libdns.Record, error) {
-	client, err := p.getClient()
+	DescribeRecordList = "DescribeRecordList"
+	CreateRecord       = "CreateRecord"
+	ModifyRecord       = "ModifyRecord"
+	DeleteRecord       = "DeleteRecord"
+)
+
+var sOption = sjson.Options{Optimistic: true, ReplaceInPlace: true}
+
+func (p *Provider) listRecords(ctx context.Context, zone string) ([]libdns.Record, error) {
+	domain := strings.TrimSuffix(zone, ".")
+	payload, err := sjson.Set("", "Domain", domain)
 	if err != nil {
 		return nil, err
 	}
 
-	var list []libdns.Record
-	request := dnspod.NewDescribeRecordListRequest()
-	request.Domain = common.StringPtr(strings.Trim(zone, "."))
-	request.Offset = common.Uint64Ptr(0)
-	request.Limit = common.Uint64Ptr(3000)
-
-	totalCount := uint64(100)
-	for *request.Offset < totalCount {
-		response, err := client.DescribeRecordListWithContext(ctx, request)
-		if err != nil {
-			return nil, err
-		}
-		if response.Response.RecordList != nil && len(response.Response.RecordList) > 0 {
-			for _, record := range response.Response.RecordList {
-				list = append(list, libdns.Record{
-					ID:    strconv.Itoa(int(*record.RecordId)),
-					Type:  *record.Type,
-					Name:  *record.Name,
-					Value: *record.Value,
-					TTL:   time.Duration(*record.TTL) * time.Second,
-				})
-			}
-		}
-		totalCount = *response.Response.RecordCountInfo.TotalCount
-		request.Offset = common.Uint64Ptr(*request.Offset + uint64(len(response.Response.RecordList)))
+	resp, err := p.sendRequest(ctx, DescribeRecordList, payload)
+	if err != nil {
+		return nil, err
 	}
-	return list, err
+
+	result := gjson.GetBytes(resp, "Response.RecordList")
+	if !result.IsArray() {
+		return nil, ErrNotValid
+	}
+
+	list := make([]libdns.Record, 0, result.Get("#").Int())
+	result.ForEach(func(_, v gjson.Result) bool {
+		list = append(list, libdns.Record{
+			ID:    v.Get("RecordId").String(),
+			Type:  v.Get("Type").String(),
+			Name:  v.Get("Name").String(),
+			Value: v.Get("Value").String(),
+			TTL:   time.Duration(v.Get("TTL").Int()) * time.Second,
+		})
+		return true
+	})
+
+	return list, nil
 }
 
-// createRecord creates a record for a zone
-func (p *Provider) createRecord(ctx context.Context, zone string, record libdns.Record) (string, error) {
-	client, err := p.getClient()
+func (p *Provider) createRecord(ctx context.Context, zone string, record libdns.Record) error {
+	domain := strings.TrimSuffix(zone, ".")
+
+	payload, _ := sjson.SetOptions(reqJson, "Domain", domain, &sOption)
+	payload, _ = sjson.SetOptions(payload, "SubDomain", record.Name, &sOption)
+	payload, _ = sjson.SetOptions(payload, "RecordType", record.Type, &sOption)
+	payload, _ = sjson.SetOptions(payload, "Value", record.Value, &sOption)
+	payload, _ = sjson.Delete(payload, "RecordId")
+
+	resp, err := p.sendRequest(ctx, CreateRecord, payload)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	request := dnspod.NewCreateRecordRequest()
-	request.Domain = common.StringPtr(strings.Trim(zone, "."))
-	request.SubDomain = common.StringPtr(record.Name)
-	request.RecordType = common.StringPtr(record.Type)
-	request.RecordLine = common.StringPtr("默认")
-	request.Value = common.StringPtr(record.Value)
-	response, err := client.CreateRecordWithContext(ctx, request)
-
-	if err != nil {
-		return "", err
+	result := gjson.GetBytes(resp, "Response.RecordId")
+	if !result.Exists() {
+		return ErrNotValid
 	}
-	return strconv.Itoa(int(*response.Response.RecordId)), nil
+
+	return nil
 }
 
-// modifyRecord modifies a record for a zone
 func (p *Provider) modifyRecord(ctx context.Context, zone string, record libdns.Record) error {
-	client, err := p.getClient()
+	domain := strings.TrimSuffix(zone, ".")
+
+	payload, _ := sjson.SetOptions(reqJson, "Domain", domain, &sOption)
+	payload, _ = sjson.SetOptions(payload, "SubDomain", record.Name, &sOption)
+	payload, _ = sjson.SetOptions(payload, "RecordType", record.Type, &sOption)
+	payload, _ = sjson.SetOptions(payload, "Value", record.Value, &sOption)
+	payload, _ = sjson.SetOptions(payload, "RecordId", p.id, &sOption)
+
+	_, err := p.sendRequest(ctx, ModifyRecord, payload)
+	return err
+}
+
+func (p *Provider) deleteRecord(ctx context.Context, zone string, record libdns.Record) error {
+	domain := strings.TrimSuffix(zone, ".")
+
+	payload, _ := sjson.Set("", "Domain", domain)
+	payload, _ = sjson.Set(payload, "RecordId", record.ID)
+
+	_, err := p.sendRequest(ctx, DeleteRecord, payload)
+	return err
+}
+
+func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Record) error {
+	domain := strings.TrimSuffix(zone, ".")
+
+	payload, _ := sjson.SetOptions(reqJson_find, "Domain", domain, &sOption)
+	payload, _ = sjson.SetOptions(payload, "RecordType", record.Type, &sOption)
+	payload, _ = sjson.SetOptions(payload, "Subdomain", record.Name, &sOption)
+
+	resp, err := p.sendRequest(ctx, DescribeRecordList, payload)
 	if err != nil {
 		return err
 	}
 
-	recordId, _ := strconv.Atoi(record.ID)
-	request := dnspod.NewModifyRecordRequest()
-	request.Domain = common.StringPtr(strings.Trim(zone, "."))
-	request.SubDomain = common.StringPtr(record.Name)
-	request.RecordType = common.StringPtr(record.Type)
-	request.RecordLine = common.StringPtr("默认")
-	request.Value = common.StringPtr(record.Value)
-	request.RecordId = common.Uint64Ptr(uint64(recordId))
-
-	_, err = client.ModifyRecordWithContext(ctx, request)
-	if err != nil {
-		return err
+	result := gjson.GetBytes(resp, "Response.RecordList.0.RecordId")
+	if !result.Exists() {
+		return ErrRecordNotFound
 	}
+
+	p.id = result.Uint()
 	return nil
 }
 
-// deleteRecord deletes a record for a zone
-func (p *Provider) deleteRecord(ctx context.Context, zone string, record libdns.Record) error {
-	client, err := p.getClient()
+func (p *Provider) sendRequest(ctx context.Context, action string, data string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(data))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	recordId, _ := strconv.Atoi(record.ID)
-	request := dnspod.NewDeleteRecordRequest()
-	request.Domain = common.StringPtr(strings.Trim(zone, "."))
-	request.RecordId = common.Uint64Ptr(uint64(recordId))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-TC-Version", "2021-03-23")
 
-	_, err = client.DeleteRecordWithContext(ctx, request)
+	SignRequest(p.SecretId, p.SecretKey, req, action, data)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
