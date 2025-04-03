@@ -163,7 +163,10 @@ func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Re
 
 	var recordId uint64
 	for _, item := range response.Response.RecordList {
-		if item.Name == record.Name && item.Type == record.Type && item.Value == record.Value {
+		if item.Name == record.Name && item.Type == record.Type {
+			if record.Value != "" && item.Value != record.Value {
+				continue
+			}
 			recordId = uint64(item.RecordId)
 			break
 		}
