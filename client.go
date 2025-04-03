@@ -2,20 +2,18 @@ package tencentcloud
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/libdns/libdns"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
 const (
-	endpoint     = "https://dnspod.tencentcloudapi.com"
-	reqJson      = `{"RecordType":"","Domain":"","RecordLine":"默认","SubDomain":"","Value":"","RecordId":0}`
-	reqJson_find = `{"RecordType":"","Domain":"","Subdomain":""}`
+	endpoint = "https://dnspod.tencentcloudapi.com"
 
 	DescribeRecordList = "DescribeRecordList"
 	CreateRecord       = "CreateRecord"
@@ -23,36 +21,43 @@ const (
 	DeleteRecord       = "DeleteRecord"
 )
 
-var sOption = sjson.Options{Optimistic: true, ReplaceInPlace: true}
-
 func (p *Provider) listRecords(ctx context.Context, zone string) ([]libdns.Record, error) {
 	domain := strings.TrimSuffix(zone, ".")
-	payload, err := sjson.Set("", "Domain", domain)
+
+	requestData := FindRecordRequest{
+		Domain:     domain,
+		RecordLine: "默认",
+	}
+
+	payload, err := json.Marshal(requestData)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := p.sendRequest(ctx, DescribeRecordList, payload)
+	resp, err := p.sendRequest(ctx, DescribeRecordList, string(payload))
 	if err != nil {
 		return nil, err
 	}
 
-	result := gjson.GetBytes(resp, "Response.RecordList")
-	if !result.IsArray() {
+	var response Response
+	if err := json.Unmarshal(resp, &response); err != nil {
+		return nil, err
+	}
+
+	if len(response.Response.RecordList) == 0 {
 		return nil, ErrNotValid
 	}
 
-	list := make([]libdns.Record, 0, result.Get("#").Int())
-	result.ForEach(func(_, v gjson.Result) bool {
+	list := make([]libdns.Record, 0, len(response.Response.RecordList))
+	for _, record := range response.Response.RecordList {
 		list = append(list, libdns.Record{
-			ID:    v.Get("RecordId").String(),
-			Type:  v.Get("Type").String(),
-			Name:  v.Get("Name").String(),
-			Value: v.Get("Value").String(),
-			TTL:   time.Duration(v.Get("TTL").Int()) * time.Second,
+			ID:    strconv.FormatInt(record.RecordId, 10),
+			Type:  record.Type,
+			Name:  record.Name,
+			Value: record.Value,
+			TTL:   time.Duration(record.TTL) * time.Second,
 		})
-		return true
-	})
+	}
 
 	return list, nil
 }
@@ -60,19 +65,31 @@ func (p *Provider) listRecords(ctx context.Context, zone string) ([]libdns.Recor
 func (p *Provider) createRecord(ctx context.Context, zone string, record libdns.Record) error {
 	domain := strings.TrimSuffix(zone, ".")
 
-	payload, _ := sjson.SetOptions(reqJson, "Domain", domain, &sOption)
-	payload, _ = sjson.SetOptions(payload, "SubDomain", record.Name, &sOption)
-	payload, _ = sjson.SetOptions(payload, "RecordType", record.Type, &sOption)
-	payload, _ = sjson.SetOptions(payload, "Value", record.Value, &sOption)
-	payload, _ = sjson.Delete(payload, "RecordId")
+	requestData := CreateModifyRecordRequest{
+		Domain:     domain,
+		SubDomain:  record.Name,
+		RecordType: record.Type,
+		RecordLine: "默认",
+		Value:      record.Value,
+		TTL:        int64(record.TTL.Seconds()),
+	}
 
-	resp, err := p.sendRequest(ctx, CreateRecord, payload)
+	payload, err := json.Marshal(requestData)
 	if err != nil {
 		return err
 	}
 
-	result := gjson.GetBytes(resp, "Response.RecordId")
-	if !result.Exists() {
+	resp, err := p.sendRequest(ctx, CreateRecord, string(payload))
+	if err != nil {
+		return err
+	}
+
+	var response Response
+	if err := json.Unmarshal(resp, &response); err != nil {
+		return err
+	}
+
+	if response.Response.RecordId == 0 {
 		return ErrNotValid
 	}
 
@@ -82,44 +99,85 @@ func (p *Provider) createRecord(ctx context.Context, zone string, record libdns.
 func (p *Provider) modifyRecord(ctx context.Context, zone string, record libdns.Record) error {
 	domain := strings.TrimSuffix(zone, ".")
 
-	payload, _ := sjson.SetOptions(reqJson, "Domain", domain, &sOption)
-	payload, _ = sjson.SetOptions(payload, "SubDomain", record.Name, &sOption)
-	payload, _ = sjson.SetOptions(payload, "RecordType", record.Type, &sOption)
-	payload, _ = sjson.SetOptions(payload, "Value", record.Value, &sOption)
-	payload, _ = sjson.SetOptions(payload, "RecordId", p.id, &sOption)
+	requestData := CreateModifyRecordRequest{
+		Domain:     domain,
+		SubDomain:  record.Name,
+		RecordType: record.Type,
+		RecordLine: "默认",
+		Value:      record.Value,
+		TTL:        int64(record.TTL.Seconds()),
+		RecordId:   p.id,
+	}
 
-	_, err := p.sendRequest(ctx, ModifyRecord, payload)
+	payload, err := json.Marshal(requestData)
+	if err != nil {
+		return err
+	}
+
+	_, err = p.sendRequest(ctx, ModifyRecord, string(payload))
 	return err
 }
 
 func (p *Provider) deleteRecord(ctx context.Context, zone string, record libdns.Record) error {
 	domain := strings.TrimSuffix(zone, ".")
 
-	payload, _ := sjson.Set("", "Domain", domain)
-	payload, _ = sjson.Set(payload, "RecordId", record.ID)
+	requestData := DeleteRecordRequest{
+		Domain:   domain,
+		RecordId: record.ID,
+	}
 
-	_, err := p.sendRequest(ctx, DeleteRecord, payload)
+	payload, err := json.Marshal(requestData)
+	if err != nil {
+		return err
+	}
+
+	_, err = p.sendRequest(ctx, DeleteRecord, string(payload))
 	return err
 }
 
 func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Record) error {
 	domain := strings.TrimSuffix(zone, ".")
 
-	payload, _ := sjson.SetOptions(reqJson_find, "Domain", domain, &sOption)
-	payload, _ = sjson.SetOptions(payload, "RecordType", record.Type, &sOption)
-	payload, _ = sjson.SetOptions(payload, "Subdomain", record.Name, &sOption)
+	requestData := FindRecordRequest{
+		Domain:     domain,
+		RecordType: record.Type,
+		RecordLine: "默认",
+		Subdomain:  record.Name,
+		Limit:      3000,
+	}
 
-	resp, err := p.sendRequest(ctx, DescribeRecordList, payload)
+	payload, err := json.Marshal(requestData)
 	if err != nil {
 		return err
 	}
 
-	result := gjson.GetBytes(resp, "Response.RecordList.0.RecordId")
-	if !result.Exists() {
+	resp, err := p.sendRequest(ctx, DescribeRecordList, string(payload))
+	if err != nil {
+		return err
+	}
+
+	var response Response
+	if err := json.Unmarshal(resp, &response); err != nil {
+		return err
+	}
+
+	if len(response.Response.RecordList) == 0 {
 		return ErrRecordNotFound
 	}
 
-	p.id = result.Uint()
+	var recordId uint64
+	for _, item := range response.Response.RecordList {
+		if item.Name == record.Name && item.Type == record.Type && item.Value == record.Value {
+			recordId = uint64(item.RecordId)
+			break
+		}
+	}
+
+	if recordId == 0 {
+		return ErrRecordNotFound
+	}
+
+	p.id = recordId
 	return nil
 }
 
