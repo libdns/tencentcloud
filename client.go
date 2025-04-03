@@ -40,12 +40,8 @@ func (p *Provider) listRecords(ctx context.Context, zone string) ([]libdns.Recor
 	}
 
 	var response Response
-	if err := json.Unmarshal(resp, &response); err != nil {
+	if err = json.Unmarshal(resp, &response); err != nil {
 		return nil, err
-	}
-
-	if len(response.Response.RecordList) == 0 {
-		return nil, ErrNotValid
 	}
 
 	list := make([]libdns.Record, 0, len(response.Response.RecordList))
@@ -163,10 +159,6 @@ func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Re
 	var response Response
 	if err = json.Unmarshal(resp, &response); err != nil {
 		return 0, err
-	}
-
-	if len(response.Response.RecordList) == 0 {
-		return 0, ErrRecordNotFound
 	}
 
 	var recordId uint64
