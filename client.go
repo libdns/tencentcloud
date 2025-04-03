@@ -99,6 +99,10 @@ func (p *Provider) createRecord(ctx context.Context, zone string, record libdns.
 func (p *Provider) modifyRecord(ctx context.Context, zone string, record libdns.Record) error {
 	domain := strings.TrimSuffix(zone, ".")
 
+	recordId, err := strconv.ParseUint(record.ID, 10, 64)
+	if err != nil {
+		return err
+	}
 	requestData := CreateModifyRecordRequest{
 		Domain:     domain,
 		SubDomain:  record.Name,
@@ -106,7 +110,7 @@ func (p *Provider) modifyRecord(ctx context.Context, zone string, record libdns.
 		RecordLine: "默认",
 		Value:      record.Value,
 		TTL:        int64(record.TTL.Seconds()),
-		RecordId:   p.id,
+		RecordId:   recordId,
 	}
 
 	payload, err := json.Marshal(requestData)
@@ -135,7 +139,7 @@ func (p *Provider) deleteRecord(ctx context.Context, zone string, record libdns.
 	return err
 }
 
-func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Record) error {
+func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Record) (uint64, error) {
 	domain := strings.TrimSuffix(zone, ".")
 
 	requestData := FindRecordRequest{
@@ -148,21 +152,21 @@ func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Re
 
 	payload, err := json.Marshal(requestData)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	resp, err := p.sendRequest(ctx, DescribeRecordList, string(payload))
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	var response Response
-	if err := json.Unmarshal(resp, &response); err != nil {
-		return err
+	if err = json.Unmarshal(resp, &response); err != nil {
+		return 0, err
 	}
 
 	if len(response.Response.RecordList) == 0 {
-		return ErrRecordNotFound
+		return 0, ErrRecordNotFound
 	}
 
 	var recordId uint64
@@ -174,11 +178,10 @@ func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Re
 	}
 
 	if recordId == 0 {
-		return ErrRecordNotFound
+		return 0, ErrRecordNotFound
 	}
 
-	p.id = recordId
-	return nil
+	return recordId, nil
 }
 
 func (p *Provider) sendRequest(ctx context.Context, action string, data string) ([]byte, error) {
