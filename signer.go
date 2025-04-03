@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// https://github.com/jeessy2/ddns-go/blob/master/util/tencent_cloud_signer.go
+// SignRequest https://github.com/jeessy2/ddns-go/blob/master/util/tencent_cloud_signer.go
 func SignRequest(secretId string, secretKey string, r *http.Request, action string, payload string) {
 	algorithm := "TC3-HMAC-SHA256"
 	service := "dnspod"
