@@ -2,6 +2,7 @@ package tencentcloud
 
 import (
 	"context"
+	"net/netip"
 	"os"
 	"testing"
 
@@ -20,11 +21,14 @@ var (
 )
 
 func TestSetRecords(t *testing.T) {
-	_, err := provider.SetRecords(context.Background(), zone, []libdns.Record{
-		{
-			Type:  "A",
-			Name:  name,
-			Value: value,
+	netip, err := netip.ParseAddr(value)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	_, err = provider.SetRecords(context.Background(), zone, []libdns.Record{
+		libdns.Address{
+			Name: name,
+			IP:   netip,
 		},
 	})
 	if err != nil {
@@ -38,7 +42,8 @@ func TestGetRecords(t *testing.T) {
 		t.Fatalf("GetRecords: %v", err)
 	}
 	for _, record := range records {
-		t.Logf("RecordId: %s, RecordType: %s, Name: %s, Value: %s, TTL: %d",
-			record.ID, record.Type, record.Name, record.Value, int(record.TTL.Seconds()))
+		rr := record.RR()
+		t.Logf("RecordType: %s, Name: %s, Data: %s",
+			rr.Type, rr.Name, rr.Data)
 	}
 }
