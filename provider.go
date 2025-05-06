@@ -3,7 +3,6 @@ package tencentcloud
 import (
 	"context"
 	"errors"
-	"strconv"
 
 	"github.com/libdns/libdns"
 )
@@ -33,8 +32,7 @@ func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns
 				continue
 			}
 		}
-		record.ID = strconv.FormatUint(id, 10)
-		if err = p.modifyRecord(ctx, zone, record); err != nil {
+		if err = p.modifyRecord(ctx, id, zone, record); err != nil {
 			return nil, err
 		}
 	}
@@ -44,14 +42,11 @@ func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns
 
 func (p *Provider) DeleteRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
 	for _, record := range records {
-		if record.ID == "" {
-			id, err := p.findRecord(ctx, zone, record)
-			if err != nil {
-				return nil, err
-			}
-			record.ID = strconv.FormatUint(id, 10)
+		id, err := p.findRecord(ctx, zone, record)
+		if err != nil {
+			return nil, err
 		}
-		if err := p.deleteRecord(ctx, zone, record); err != nil {
+		if err := p.deleteRecord(ctx, id, zone); err != nil {
 			return nil, err
 		}
 	}

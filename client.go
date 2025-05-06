@@ -45,14 +45,18 @@ func (p *Provider) listRecords(ctx context.Context, zone string) ([]libdns.Recor
 	}
 
 	list := make([]libdns.Record, 0, len(response.Response.RecordList))
-	for _, record := range response.Response.RecordList {
-		list = append(list, libdns.Record{
-			ID:    strconv.FormatInt(record.RecordId, 10),
-			Type:  record.Type,
-			Name:  record.Name,
-			Value: record.Value,
-			TTL:   time.Duration(record.TTL) * time.Second,
-		})
+	for _, txRecord := range response.Response.RecordList {
+		rr := record{
+			Type:  txRecord.Type,
+			Name:  txRecord.Name,
+			Value: txRecord.Value,
+			TTL:   time.Duration(txRecord.TTL) * time.Second,
+		}
+		libdnsRecord, err := rr.libdnsRecord()
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, libdnsRecord)
 	}
 
 	return list, nil
@@ -60,14 +64,14 @@ func (p *Provider) listRecords(ctx context.Context, zone string) ([]libdns.Recor
 
 func (p *Provider) createRecord(ctx context.Context, zone string, record libdns.Record) error {
 	domain := strings.TrimSuffix(zone, ".")
-
+	r := fromLibdnsRecord(record)
 	requestData := CreateModifyRecordRequest{
 		Domain:     domain,
-		SubDomain:  record.Name,
-		RecordType: record.Type,
+		SubDomain:  r.Name,
+		RecordType: r.Type,
 		RecordLine: "默认",
-		Value:      record.Value,
-		TTL:        int64(record.TTL.Seconds()),
+		Value:      r.Value,
+		TTL:        int64(r.TTL.Seconds()),
 	}
 
 	payload, err := json.Marshal(requestData)
@@ -92,21 +96,17 @@ func (p *Provider) createRecord(ctx context.Context, zone string, record libdns.
 	return nil
 }
 
-func (p *Provider) modifyRecord(ctx context.Context, zone string, record libdns.Record) error {
+func (p *Provider) modifyRecord(ctx context.Context, id uint64, zone string, record libdns.Record) error {
 	domain := strings.TrimSuffix(zone, ".")
-
-	recordId, err := strconv.ParseUint(record.ID, 10, 64)
-	if err != nil {
-		return err
-	}
+	r := fromLibdnsRecord(record)
 	requestData := CreateModifyRecordRequest{
 		Domain:     domain,
-		SubDomain:  record.Name,
-		RecordType: record.Type,
+		SubDomain:  r.Name,
+		RecordType: r.Type,
 		RecordLine: "默认",
-		Value:      record.Value,
-		TTL:        int64(record.TTL.Seconds()),
-		RecordId:   recordId,
+		Value:      r.Value,
+		TTL:        int64(r.TTL.Seconds()),
+		RecordId:   id,
 	}
 
 	payload, err := json.Marshal(requestData)
@@ -118,12 +118,12 @@ func (p *Provider) modifyRecord(ctx context.Context, zone string, record libdns.
 	return err
 }
 
-func (p *Provider) deleteRecord(ctx context.Context, zone string, record libdns.Record) error {
+func (p *Provider) deleteRecord(ctx context.Context, id uint64, zone string) error {
 	domain := strings.TrimSuffix(zone, ".")
 
 	requestData := DeleteRecordRequest{
 		Domain:   domain,
-		RecordId: record.ID,
+		RecordId: strconv.FormatUint(id, 10),
 	}
 
 	payload, err := json.Marshal(requestData)
@@ -137,12 +137,12 @@ func (p *Provider) deleteRecord(ctx context.Context, zone string, record libdns.
 
 func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Record) (uint64, error) {
 	domain := strings.TrimSuffix(zone, ".")
-
+	r := fromLibdnsRecord(record)
 	requestData := FindRecordRequest{
 		Domain:     domain,
-		RecordType: record.Type,
+		RecordType: r.Type,
 		RecordLine: "默认",
-		Subdomain:  record.Name,
+		Subdomain:  r.Name,
 		Limit:      3000,
 	}
 
@@ -163,8 +163,8 @@ func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Re
 
 	var recordId uint64
 	for _, item := range response.Response.RecordList {
-		if item.Name == record.Name && item.Type == record.Type {
-			if record.Value != "" && item.Value != record.Value {
+		if item.Name == r.Name && item.Type == r.Type {
+			if r.Value != "" && item.Value != r.Value {
 				continue
 			}
 			recordId = uint64(item.RecordId)
