@@ -35,7 +35,7 @@ type FindRecordRequest struct {
 
 type DeleteRecordRequest struct {
 	Domain   string `json:"Domain"`
-	RecordId string `json:"RecordId"`
+	RecordId uint64 `json:"RecordId"`
 }
 
 type Response struct {
