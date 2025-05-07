@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -123,7 +122,7 @@ func (p *Provider) deleteRecord(ctx context.Context, id uint64, zone string) err
 
 	requestData := DeleteRecordRequest{
 		Domain:   domain,
-		RecordId: strconv.FormatUint(id, 10),
+		RecordId: id,
 	}
 
 	payload, err := json.Marshal(requestData)
@@ -145,7 +144,6 @@ func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Re
 		Subdomain:  r.Name,
 		Limit:      3000,
 	}
-
 	payload, err := json.Marshal(requestData)
 	if err != nil {
 		return 0, err
@@ -160,7 +158,6 @@ func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Re
 	if err = json.Unmarshal(resp, &response); err != nil {
 		return 0, err
 	}
-
 	var recordId uint64
 	for _, item := range response.Response.RecordList {
 		if item.Name == r.Name && item.Type == r.Type {
