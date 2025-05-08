@@ -11,8 +11,10 @@ var ErrRecordNotFound = errors.New("record not found")
 var ErrNotValid = errors.New("returned value is not valid")
 
 type Provider struct {
-	SecretId  string
-	SecretKey string
+	SecretId     string
+	SecretKey    string
+	SessionToken string
+	Region       string
 }
 
 type CreateModifyRecordRequest struct {
