@@ -2,6 +2,7 @@ package tencentcloud
 
 import (
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/libdns/libdns"
@@ -56,6 +57,7 @@ type RecordInfo struct {
 	Name     string `json:"Name"`
 	Value    string `json:"Value"`
 	TTL      int64  `json:"TTL"`
+	MX       int    `json:"MX,omitempty"`
 }
 
 type ErrorInfo struct {
@@ -68,9 +70,13 @@ type record struct {
 	Name  string
 	Value string
 	TTL   time.Duration
+	MX    int
 }
 
 func (r record) libdnsRecord() (libdns.Record, error) {
+	if r.Type == "MX" {
+		r.Value = strconv.Itoa(r.MX) + " " + r.Value
+	}
 	return libdns.RR{
 		Type: r.Type,
 		Name: r.Name,

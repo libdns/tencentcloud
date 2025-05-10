@@ -50,6 +50,7 @@ func (p *Provider) listRecords(ctx context.Context, zone string) ([]libdns.Recor
 			Name:  txRecord.Name,
 			Value: txRecord.Value,
 			TTL:   time.Duration(txRecord.TTL) * time.Second,
+			MX:    txRecord.MX,
 		}
 		libdnsRecord, err := rr.libdnsRecord()
 		if err != nil {
