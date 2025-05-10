@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,10 +46,14 @@ func (p *Provider) listRecords(ctx context.Context, zone string) ([]libdns.Recor
 
 	list := make([]libdns.Record, 0, len(response.Response.RecordList))
 	for _, txRecord := range response.Response.RecordList {
+		value := txRecord.Value
+		if txRecord.Type == "MX" {
+			value = strconv.Itoa(txRecord.MX) + " " + value
+		}
 		rr := record{
 			Type:  txRecord.Type,
 			Name:  txRecord.Name,
-			Value: txRecord.Value,
+			Value: value,
 			TTL:   time.Duration(txRecord.TTL) * time.Second,
 		}
 		libdnsRecord, err := rr.libdnsRecord()

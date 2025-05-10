@@ -56,6 +56,7 @@ type RecordInfo struct {
 	Name     string `json:"Name"`
 	Value    string `json:"Value"`
 	TTL      int64  `json:"TTL"`
+	MX       int  `json:"MX"`
 }
 
 type ErrorInfo struct {
