@@ -11,8 +11,10 @@ var ErrRecordNotFound = errors.New("record not found")
 var ErrNotValid = errors.New("returned value is not valid")
 
 type Provider struct {
-	SecretId  string
-	SecretKey string
+	SecretId     string
+	SecretKey    string
+	SessionToken string
+	Region       string
 }
 
 type CreateModifyRecordRequest struct {
@@ -54,6 +56,7 @@ type RecordInfo struct {
 	Name     string `json:"Name"`
 	Value    string `json:"Value"`
 	TTL      int64  `json:"TTL"`
+	MX       int  `json:"MX"`
 }
 
 type ErrorInfo struct {

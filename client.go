@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,10 +46,14 @@ func (p *Provider) listRecords(ctx context.Context, zone string) ([]libdns.Recor
 
 	list := make([]libdns.Record, 0, len(response.Response.RecordList))
 	for _, txRecord := range response.Response.RecordList {
+		value := txRecord.Value
+		if txRecord.Type == "MX" {
+			value = strconv.Itoa(txRecord.MX) + " " + value
+		}
 		rr := record{
 			Type:  txRecord.Type,
 			Name:  txRecord.Name,
-			Value: txRecord.Value,
+			Value: value,
 			TTL:   time.Duration(txRecord.TTL) * time.Second,
 		}
 		libdnsRecord, err := rr.libdnsRecord()
@@ -177,7 +182,12 @@ func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Re
 }
 
 func (p *Provider) sendRequest(ctx context.Context, action string, data string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(data))
+	endpointUrl := endpoint
+	if p.Region != "" {
+		endpointUrl = "https://dnspod." + p.Region + ".tencentcloudapi.com"
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", endpointUrl, strings.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +195,7 @@ func (p *Provider) sendRequest(ctx context.Context, action string, data string) 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-TC-Version", "2021-03-23")
 
-	SignRequest(p.SecretId, p.SecretKey, req, action, data)
+	SignRequest(p.SecretId, p.SecretKey, p.SessionToken, req, action, data)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
