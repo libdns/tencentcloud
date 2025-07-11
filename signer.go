@@ -11,7 +11,7 @@ import (
 )
 
 // SignRequest https://github.com/jeessy2/ddns-go/blob/master/util/tencent_cloud_signer.go
-func SignRequest(secretId string, secretKey string, r *http.Request, action string, payload string) {
+func SignRequest(secretId string, secretKey string, sessionToken string, r *http.Request, action string, payload string) {
 	algorithm := "TC3-HMAC-SHA256"
 	service := "dnspod"
 	host := writeString(service, ".tencentcloudapi.com")
@@ -43,6 +43,11 @@ func SignRequest(secretId string, secretKey string, r *http.Request, action stri
 	r.Header.Set("Host", host)
 	r.Header.Set("X-TC-Action", action)
 	r.Header.Set("X-TC-Timestamp", timestampStr)
+
+	// Add session token if provided
+	if sessionToken != "" {
+		r.Header.Set("X-TC-Token", sessionToken)
+	}
 }
 
 func sha256hex(s string) string {
