@@ -135,7 +135,7 @@ func (p *Provider) deleteRecord(ctx context.Context, id uint64, zone string) err
 	return err
 }
 
-func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Record) (uint64, error) {
+func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Record, matchValue bool) (uint64, error) {
 	domain := strings.TrimSuffix(zone, ".")
 	r := fromLibdnsRecord(record)
 	requestData := FindRecordRequest{
@@ -162,7 +162,7 @@ func (p *Provider) findRecord(ctx context.Context, zone string, record libdns.Re
 	var recordId uint64
 	for _, item := range response.Response.RecordList {
 		if item.Name == r.Name && item.Type == r.Type {
-			if r.Value != "" && item.Value != r.Value {
+			if matchValue && r.Value != "" && item.Value != r.Value {
 				continue
 			}
 			recordId = uint64(item.RecordId)

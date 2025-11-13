@@ -23,7 +23,7 @@ func (p *Provider) AppendRecords(ctx context.Context, zone string, records []lib
 
 func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
 	for _, record := range records {
-		id, err := p.findRecord(ctx, zone, record)
+		id, err := p.findRecord(ctx, zone, record, false)
 		if err != nil {
 			if errors.Is(err, ErrRecordNotFound) {
 				if err = p.createRecord(ctx, zone, record); err != nil {
@@ -42,7 +42,7 @@ func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns
 
 func (p *Provider) DeleteRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
 	for _, record := range records {
-		id, err := p.findRecord(ctx, zone, record)
+		id, err := p.findRecord(ctx, zone, record, true)
 		if err != nil {
 			return nil, err
 		}
